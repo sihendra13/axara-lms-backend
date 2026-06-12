@@ -40,13 +40,13 @@ async function register(req, res) {
     // Create tenant
     const { data: tenant, error: tenantError } = await supabaseAdmin
       .from('tenants')
-      .insert({ name: company_name, slug: company_name.toLowerCase().replace(/\s+/g, '-') })
+      .insert({ name: company_name, plan: 'starter', status: 'active' })
       .select()
       .single();
 
     if (tenantError) throw tenantError;
 
-    // Create HRD user
+    // Create HRD user (role = 'admin' sesuai schema)
     const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
 
     const { data: user, error: userError } = await supabaseAdmin
@@ -56,7 +56,9 @@ async function register(req, res) {
         name,
         email: email.toLowerCase(),
         password_hash: passwordHash,
-        role: 'hrd',
+        role: 'admin',
+        status: 'active',
+        avatar: name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase(),
       })
       .select('id, name, email, role, tenant_id')
       .single();
@@ -97,7 +99,7 @@ async function login(req, res) {
   try {
     const { data: user, error } = await supabaseAdmin
       .from('users')
-      .select('id, tenant_id, name, email, role, password_hash, is_active')
+      .select('id, tenant_id, name, email, role, password_hash, status')
       .eq('email', email.toLowerCase())
       .single();
 
@@ -105,7 +107,7 @@ async function login(req, res) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    if (!user.is_active) {
+    if (user.status !== 'active') {
       return res.status(403).json({ error: 'Account is deactivated' });
     }
 
@@ -150,11 +152,11 @@ async function refresh(req, res) {
     // Verify user still exists and is active
     const { data: user, error } = await supabaseAdmin
       .from('users')
-      .select('id, tenant_id, name, email, role, is_active')
+      .select('id, tenant_id, name, email, role, status')
       .eq('id', decoded.user_id)
       .single();
 
-    if (error || !user || !user.is_active) {
+    if (error || !user || user.status !== 'active') {
       return res.status(401).json({ error: 'Invalid refresh token' });
     }
 

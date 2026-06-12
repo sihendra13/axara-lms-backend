@@ -53,13 +53,12 @@ async function createInvitation(req, res) {
       .insert({
         tenant_id: req.tenant_id,
         email: email.toLowerCase(),
-        role,
-        name: name || null,
         token,
         invited_by: req.user.user_id,
         expires_at: expiresAt.toISOString(),
+        status: 'pending',
       })
-      .select('id, email, role, token, expires_at')
+      .select('id, email, token, expires_at')
       .single();
 
     if (error) throw error;
@@ -73,7 +72,6 @@ async function createInvitation(req, res) {
       invitation: {
         id: invitation.id,
         email: invitation.email,
-        role: invitation.role,
         expires_at: invitation.expires_at,
       },
       invitationLink,

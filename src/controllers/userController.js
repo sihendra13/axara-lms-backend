@@ -5,19 +5,19 @@ const { supabaseAdmin } = require('../config/database');
 const SALT_ROUNDS = 12;
 
 // GET /api/v1/users
-// HRD lihat semua user dalam tenant (bisa filter by role, is_active)
+// HRD lihat semua user dalam tenant (bisa filter by role, status)
 async function listUsers(req, res) {
-  const { role, is_active, department_id } = req.query;
+  const { role, status, department_id } = req.query;
 
   try {
     let query = supabaseAdmin
       .from('users')
-      .select('id, name, email, role, is_active, department_id, position, created_at')
+      .select('id, name, email, role, status, department_id, position, created_at')
       .eq('tenant_id', req.tenant_id)
       .order('created_at', { ascending: false });
 
     if (role) query = query.eq('role', role);
-    if (is_active !== undefined) query = query.eq('is_active', is_active === 'true');
+    if (status !== undefined) query = query.eq('status', status === 'true');
     if (department_id) query = query.eq('department_id', department_id);
 
     const { data, error } = await query;
@@ -35,7 +35,7 @@ async function getUser(req, res) {
   try {
     const { data, error } = await supabaseAdmin
       .from('users')
-      .select('id, name, email, role, is_active, department_id, position, created_at')
+      .select('id, name, email, role, status, department_id, position, created_at')
       .eq('id', req.params.id)
       .eq('tenant_id', req.tenant_id)
       .single();
@@ -80,10 +80,11 @@ async function addEmployee(req, res) {
         email: email.toLowerCase(),
         password_hash: passwordHash,
         role: 'employee',
+        status: 'active',
+        avatar: name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase(),
         department_id: department_id || null,
-        position: position || null,
       })
-      .select('id, name, email, role, department_id, position')
+      .select('id, name, email, role, department_id')
       .single();
 
     if (error) throw error;
@@ -133,8 +134,9 @@ async function addEmployeesBulk(req, res) {
           email: emp.email.toLowerCase(),
           password_hash: passwordHash,
           role: 'employee',
+          status: 'active',
+          avatar: emp.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase(),
           department_id: emp.department_id || null,
-          position: emp.position || null,
         })
         .select('id, name, email')
         .single();
@@ -155,21 +157,21 @@ async function addEmployeesBulk(req, res) {
 
 // PATCH /api/v1/users/:id
 async function updateUser(req, res) {
-  const { name, department_id, position, is_active } = req.body;
+  const { name, department_id, position, status } = req.body;
 
   try {
     const updates = {};
     if (name !== undefined) updates.name = name;
     if (department_id !== undefined) updates.department_id = department_id;
     if (position !== undefined) updates.position = position;
-    if (is_active !== undefined) updates.is_active = is_active;
+    if (status !== undefined) updates.status = status;
 
     const { data, error } = await supabaseAdmin
       .from('users')
       .update(updates)
       .eq('id', req.params.id)
       .eq('tenant_id', req.tenant_id)
-      .select('id, name, email, role, is_active, department_id, position')
+      .select('id, name, email, role, status, department_id, position')
       .single();
 
     if (error || !data) return res.status(404).json({ error: 'User not found' });
@@ -186,7 +188,7 @@ async function deactivateUser(req, res) {
   try {
     const { data, error } = await supabaseAdmin
       .from('users')
-      .update({ is_active: false })
+      .update({ status: false })
       .eq('id', req.params.id)
       .eq('tenant_id', req.tenant_id)
       .neq('role', 'hrd') // HRD tidak bisa didelete dari sini
