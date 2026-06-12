@@ -35,8 +35,8 @@ app.get('/api/v1/health', (req, res) => {
   });
 });
 
-// Routes (akan di-implement nanti)
-// app.use('/api/v1/auth', require('./routes/auth'));
+// Routes
+app.use('/api/v1/auth', require('./routes/auth'));
 // app.use('/api/v1/users', require('./routes/users'));
 // app.use('/api/v1/videos', require('./routes/videos'));
 
