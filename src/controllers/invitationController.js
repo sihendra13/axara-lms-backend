@@ -14,8 +14,8 @@ async function createInvitation(req, res) {
     return res.status(400).json({ error: 'email and role are required' });
   }
 
-  if (!['supervisor', 'lead'].includes(role)) {
-    return res.status(400).json({ error: 'role must be supervisor or lead' });
+  if (!['supervisor', 'lead', 'employee'].includes(role)) {
+    return res.status(400).json({ error: 'role must be supervisor, lead, or employee' });
   }
 
   try {
@@ -53,12 +53,14 @@ async function createInvitation(req, res) {
       .insert({
         tenant_id: req.tenant_id,
         email: email.toLowerCase(),
+        role,
+        invited_name: name || null,
         token,
         invited_by: req.user.user_id,
         expires_at: expiresAt.toISOString(),
         status: 'pending',
       })
-      .select('id, email, token, expires_at')
+      .select('id, email, role, invited_name, token, expires_at')
       .single();
 
     if (error) throw error;
@@ -117,7 +119,7 @@ async function validateInvitation(req, res) {
   try {
     const { data, error } = await supabaseAdmin
       .from('supervisor_invitations')
-      .select('id, email, role, name, tenant_id, expires_at, accepted_at')
+      .select('id, email, role, invited_name, tenant_id, expires_at, accepted_at')
       .eq('token', req.params.token)
       .single();
 
@@ -145,7 +147,7 @@ async function validateInvitation(req, res) {
       invitation: {
         email: data.email,
         role: data.role,
-        name: data.name,
+        invited_name: data.invited_name,
         company: tenant?.name,
         expires_at: data.expires_at,
       },
@@ -172,7 +174,7 @@ async function acceptInvitation(req, res) {
   try {
     const { data: invitation, error } = await supabaseAdmin
       .from('supervisor_invitations')
-      .select('id, email, role, tenant_id, expires_at, accepted_at')
+      .select('id, email, role, invited_name, tenant_id, expires_at, accepted_at')
       .eq('token', req.params.token)
       .single();
 
