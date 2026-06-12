@@ -37,7 +37,8 @@ app.get('/api/v1/health', (req, res) => {
 
 // Routes
 app.use('/api/v1/auth', require('./routes/auth'));
-// app.use('/api/v1/users', require('./routes/users'));
+app.use('/api/v1/users', require('./routes/users'));
+app.use('/api/v1/invitations', require('./routes/invitations'));
 // app.use('/api/v1/videos', require('./routes/videos'));
 
 // 404 Handler
