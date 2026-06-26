@@ -261,4 +261,57 @@ async function revokeInvitation(req, res) {
   }
 }
 
-module.exports = { createInvitation, listInvitations, validateInvitation, acceptInvitation, revokeInvitation };
+// POST /api/v1/invitations/bulk
+// Admin kirim undangan ke banyak karyawan sekaligus (setelah import Excel)
+async function bulkInvite(req, res) {
+  const { employees } = req.body;
+
+  if (!employees || !Array.isArray(employees) || employees.length === 0) {
+    return res.status(400).json({ error: 'employees array is required' });
+  }
+
+  const results = { sent: [], failed: [], skipped: [] };
+  const frontendUrl = process.env.FRONTEND_URL || 'https://lms-learner.pages.dev';
+
+  for (const emp of employees) {
+    if (!emp.email) {
+      results.skipped.push({ name: emp.name, reason: 'No email' });
+      continue;
+    }
+
+    try {
+      const { data, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(
+        emp.email.toLowerCase(),
+        {
+          data: {
+            name: emp.name || emp.email,
+            role: emp.role || 'employee',
+            tenant_id: req.tenant_id,
+            dept: emp.dept || null,
+          },
+          redirectTo: frontendUrl,
+        }
+      );
+
+      if (error) {
+        if (error.message?.includes('already been registered') || error.message?.includes('already exists')) {
+          results.skipped.push({ email: emp.email, name: emp.name, reason: 'Already registered' });
+        } else {
+          results.failed.push({ email: emp.email, name: emp.name, reason: error.message });
+        }
+      } else {
+        results.sent.push({ email: emp.email, name: emp.name });
+      }
+    } catch (err) {
+      results.failed.push({ email: emp.email, name: emp.name, reason: err.message });
+    }
+  }
+
+  res.json({
+    message: `Bulk invite complete: ${results.sent.length} sent, ${results.skipped.length} skipped, ${results.failed.length} failed`,
+    total: employees.length,
+    ...results,
+  });
+}
+
+module.exports = { createInvitation, listInvitations, validateInvitation, acceptInvitation, revokeInvitation, bulkInvite };
