@@ -6,6 +6,8 @@ const app = express();
 
 // Allowed origins: production Cloudflare URLs + local development
 const allowedOrigins = [
+  'https://hr.myaxara.com',
+  'https://learn.myaxara.com',
   'https://lms-admin-6wg.pages.dev',
   'https://lms-learner.pages.dev',
   'http://localhost:5173',

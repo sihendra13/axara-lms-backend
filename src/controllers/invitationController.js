@@ -66,7 +66,7 @@ async function createInvitation(req, res) {
     if (error) throw error;
 
     // Link yang di-share ke supervisor via WhatsApp
-    const frontendUrl = process.env.FRONTEND_URL || 'https://lms-admin-6wg.pages.dev';
+    const frontendUrl = process.env.FRONTEND_URL || 'https://hr.myaxara.com';
     const invitationLink = `${frontendUrl}/accept-invitation?token=${token}`;
 
     res.status(201).json({
@@ -271,7 +271,7 @@ async function bulkInvite(req, res) {
   }
 
   const results = { sent: [], failed: [], skipped: [] };
-  const frontendUrl = process.env.FRONTEND_URL || 'https://lms-learner.pages.dev';
+  const frontendUrl = process.env.FRONTEND_URL || 'https://learn.myaxara.com';
 
   for (const emp of employees) {
     if (!emp.email) {
