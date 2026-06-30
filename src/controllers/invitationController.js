@@ -8,7 +8,7 @@ const INVITATION_EXPIRES_DAYS = 7;
 // POST /api/v1/invitations
 // HRD buat undangan untuk supervisor/lead → dapat link yang bisa di-share via WhatsApp
 async function createInvitation(req, res) {
-  const { email, role, name } = req.body;
+  const { email, role, name, dept } = req.body;
 
   if (!email || !role) {
     return res.status(400).json({ error: 'email and role are required' });
@@ -55,6 +55,7 @@ async function createInvitation(req, res) {
         email: email.toLowerCase(),
         role,
         invited_name: name || null,
+        dept: dept || null,
         token,
         invited_by: req.user.user_id,
         expires_at: expiresAt.toISOString(),
@@ -119,7 +120,7 @@ async function validateInvitation(req, res) {
   try {
     const { data, error } = await supabaseAdmin
       .from('supervisor_invitations')
-      .select('id, email, role, invited_name, tenant_id, expires_at, accepted_at')
+      .select('id, email, role, invited_name, dept, tenant_id, expires_at, accepted_at')
       .eq('token', req.params.token)
       .single();
 
@@ -148,6 +149,7 @@ async function validateInvitation(req, res) {
         email: data.email,
         role: data.role,
         invited_name: data.invited_name,
+        dept: data.dept,
         company: tenant?.name,
         expires_at: data.expires_at,
       },
@@ -174,7 +176,7 @@ async function acceptInvitation(req, res) {
   try {
     const { data: invitation, error } = await supabaseAdmin
       .from('supervisor_invitations')
-      .select('id, email, role, invited_name, tenant_id, expires_at, accepted_at')
+      .select('id, email, role, invited_name, dept, tenant_id, expires_at, accepted_at')
       .eq('token', req.params.token)
       .single();
 
@@ -201,8 +203,9 @@ async function acceptInvitation(req, res) {
         email: invitation.email,
         password_hash: passwordHash,
         role: invitation.role,
+        dept: invitation.dept,
       })
-      .select('id, name, email, role, tenant_id')
+      .select('id, name, email, role, tenant_id, dept')
       .single();
 
     if (userError) throw userError;
@@ -220,6 +223,7 @@ async function acceptInvitation(req, res) {
       role: user.role,
       name: user.name,
       email: user.email,
+      dept: user.dept,
     };
 
     const accessToken = jwt.sign(tokenPayload, process.env.JWT_SECRET, { expiresIn: '8h' });
@@ -227,7 +231,7 @@ async function acceptInvitation(req, res) {
 
     res.status(201).json({
       message: 'Account created successfully! Welcome to Axara LMS.',
-      user: { id: user.id, name: user.name, email: user.email, role: user.role },
+      user: { id: user.id, name: user.name, email: user.email, role: user.role, dept: user.dept },
       accessToken,
       refreshToken,
     });
