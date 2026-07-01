@@ -269,6 +269,7 @@ async function revokeInvitation(req, res) {
 // Admin kirim undangan ke banyak karyawan sekaligus (setelah import Excel)
 async function bulkInvite(req, res) {
   const { employees } = req.body;
+  console.log('[bulkInvite] request received, employees:', employees?.length, 'tenant:', req.tenant_id);
 
   if (!employees || !Array.isArray(employees) || employees.length === 0) {
     return res.status(400).json({ error: 'employees array is required' });
@@ -284,6 +285,7 @@ async function bulkInvite(req, res) {
     }
 
     try {
+      console.log('[bulkInvite] inviting:', emp.email);
       const { data, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(
         emp.email.toLowerCase(),
         {
@@ -298,15 +300,18 @@ async function bulkInvite(req, res) {
       );
 
       if (error) {
+        console.error('[bulkInvite] error for', emp.email, ':', error.message, error.status, error.code);
         if (error.message?.includes('already been registered') || error.message?.includes('already exists')) {
           results.skipped.push({ email: emp.email, name: emp.name, reason: 'Already registered' });
         } else {
           results.failed.push({ email: emp.email, name: emp.name, reason: error.message });
         }
       } else {
+        console.log('[bulkInvite] sent to:', emp.email);
         results.sent.push({ email: emp.email, name: emp.name });
       }
     } catch (err) {
+      console.error('[bulkInvite] exception for', emp.email, ':', err.message);
       results.failed.push({ email: emp.email, name: emp.name, reason: err.message });
     }
   }
