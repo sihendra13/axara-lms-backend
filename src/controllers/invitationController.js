@@ -78,7 +78,7 @@ async function createInvitation(req, res) {
         expires_at: invitation.expires_at,
       },
       invitationLink,
-      whatsappMessage: `Halo! Anda diundang sebagai ${role} di platform LMS kami. Klik link berikut untuk membuat akun: ${invitationLink} (berlaku 7 hari)`,
+      whatsappMessage: `Anda diundang dalam platform myAxara untuk mereview staf divisi ${dept || role} Anda. Klik link berikut untuk membuat akun:\n${invitationLink}`,
     });
   } catch (err) {
     console.error('createInvitation error:', err);
