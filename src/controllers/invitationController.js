@@ -194,17 +194,24 @@ async function acceptInvitation(req, res) {
 
     const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
 
-    // Buat user baru
-    const { data: user, error: userError } = await supabaseAdmin
-      .from('users')
-      .insert({
+    // Buat Supabase Auth user agar bisa login via LMS Admin login page
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+      email: invitation.email,
+      password,
+      email_confirm: true,
+      user_metadata: {
+        role: invitation.role,
         tenant_id: invitation.tenant_id,
         name,
-        email: invitation.email,
-        password_hash: passwordHash,
-        role: invitation.role,
-        dept: invitation.dept,
-      })
+      },
+    });
+    if (authError) throw authError;
+
+    // Trigger handle_new_user sudah insert ke public.users — update dept yang belum ada
+    const { data: user, error: userError } = await supabaseAdmin
+      .from('users')
+      .update({ name, dept: invitation.dept, password_hash: passwordHash })
+      .eq('id', authData.user.id)
       .select('id, name, email, role, tenant_id, dept')
       .single();
 
