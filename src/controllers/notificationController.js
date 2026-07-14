@@ -41,7 +41,10 @@ async function sendPush(req, res) {
         keys: { p256dh: sub.keys_p256dh, auth: sub.keys_auth },
       };
       try {
-        await webpush.sendNotification(pushSubscription, payload);
+        await webpush.sendNotification(pushSubscription, payload, {
+          urgency: 'high',
+          TTL: 86400
+        });
         sent++;
       } catch (err) {
         failed++;
