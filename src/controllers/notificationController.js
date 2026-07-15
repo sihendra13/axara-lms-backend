@@ -123,7 +123,7 @@ async function notifySpvEmail(req, res) {
 
       try {
         await resend.emails.send({
-          from: \`myAxara LMS <\${fromEmail}>\`,
+          from: `myAxara LMS <${fromEmail}>`,
           to: spv.email,
           subject: 'Tugas Review: Kuis SOP Menunggu Keputusan Anda',
           html: emailHtml,
