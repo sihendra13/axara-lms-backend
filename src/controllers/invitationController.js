@@ -273,6 +273,43 @@ async function revokeInvitation(req, res) {
 }
 
 // POST /api/v1/invitations/bulk
+async function findAuthUserByEmail(email) {
+  const target = email.toLowerCase();
+  for (let page = 1; page <= 20; page++) {
+    const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: 1000 });
+    if (error) throw error;
+    const found = data.users.find(u => u.email?.toLowerCase() === target);
+    if (found) return found;
+    if (data.users.length < 1000) return null;
+  }
+  return null;
+}
+
+// Karyawan yang sudah diundang tapi belum pernah membuat password (link kedaluwarsa /
+// tidak dibuka) tidak bisa diundang ulang oleh Supabase ("already registered").
+// Hapus akun yang belum aktif itu lalu undang ulang. Hanya untuk role employee di tenant
+// yang sama — akun yang sudah aktif (password_set) tidak pernah disentuh.
+// Return true jika terkirim ulang, atau string alasan jika dilewati.
+async function resendExpiredInvite(emp, tenantId, frontendUrl) {
+  const user = await findAuthUserByEmail(emp.email);
+  if (!user) return 'Already registered';
+  const meta = user.user_metadata || {};
+  if (meta.password_set) return 'Sudah aktif (sudah membuat password)';
+  if (meta.role && meta.role !== 'employee') return 'Akun bukan karyawan';
+  if (meta.tenant_id && meta.tenant_id !== tenantId) return 'Terdaftar di perusahaan lain';
+
+  const { error: delError } = await supabaseAdmin.auth.admin.deleteUser(user.id);
+  if (delError) return `Gagal menghapus undangan lama: ${delError.message}`;
+
+  const { error } = await supabaseAdmin.auth.admin.inviteUserByEmail(emp.email.toLowerCase(), {
+    data: { name: emp.name || emp.email, role: 'employee', tenant_id: tenantId, dept: emp.dept || null },
+    redirectTo: frontendUrl,
+  });
+  if (error) return `Gagal mengirim ulang: ${error.message}`;
+  console.log('[bulkInvite] resent expired invite to:', emp.email);
+  return true;
+}
+
 // Admin kirim undangan ke banyak karyawan sekaligus (setelah import Excel)
 async function bulkInvite(req, res) {
   const { employees } = req.body;
@@ -309,7 +346,13 @@ async function bulkInvite(req, res) {
       if (error) {
         console.error('[bulkInvite] error for', emp.email, ':', error.message, error.status, error.code);
         if (error.message?.includes('already been registered') || error.message?.includes('already exists')) {
-          results.skipped.push({ email: emp.email, name: emp.name, reason: 'Already registered' });
+          // Undangan sebelumnya kedaluwarsa & karyawan belum pernah membuat password → kirim ulang
+          const resent = await resendExpiredInvite(emp, req.tenant_id, frontendUrl);
+          if (resent === true) {
+            results.sent.push({ email: emp.email, name: emp.name, resent: true });
+          } else {
+            results.skipped.push({ email: emp.email, name: emp.name, reason: resent || 'Already registered' });
+          }
         } else {
           results.failed.push({ email: emp.email, name: emp.name, reason: error.message });
         }
