@@ -140,4 +140,77 @@ async function notifyHrdEmail(req, res) {
   }
 }
 
-module.exports = { sendPush, notifyHrdEmail };
+// POST /api/v1/push-queue/process
+// Dipanggil database (pg_net) setiap ada baris baru di push_queue — mis. notifikasi
+// "SOP Selesai Dikerjakan", "Perlu Remedial", "Sertifikat Diterbitkan" dari trigger.
+// Hanya menerima queue_id: isi & penerima dibaca dari database, dan hanya dikirim
+// sekali (sent=false), sehingga endpoint ini tidak bisa dipakai untuk spam.
+async function processQueue(req, res) {
+  const { queue_id } = req.body || {};
+  if (!queue_id) {
+    return res.status(400).json({ error: 'queue_id is required' });
+  }
+
+  try {
+    const { data: item, error } = await supabaseAdmin
+      .from('push_queue')
+      .select('id, title, body, page, target_emails, sent')
+      .eq('id', queue_id)
+      .maybeSingle();
+    if (error) throw error;
+    if (!item || item.sent) {
+      return res.json({ message: 'Nothing to send', sent: 0 });
+    }
+
+    // Tandai dulu agar pemanggilan ganda tidak mengirim dua kali
+    await supabaseAdmin.from('push_queue').update({ sent: true }).eq('id', item.id);
+
+    const emails = (item.target_emails || []).map(e => e.toLowerCase());
+    if (emails.length === 0) {
+      // Tanpa penerima eksplisit jangan broadcast ke semua tenant
+      return res.json({ message: 'No target emails', sent: 0 });
+    }
+
+    const { data: subs, error: subError } = await supabaseAdmin
+      .from('push_subscriptions')
+      .select('id, endpoint, keys_p256dh, keys_auth')
+      .in('user_email', emails);
+    if (subError) throw subError;
+
+    const payload = JSON.stringify({
+      title: item.title,
+      body: item.body,
+      url: '/',
+      page: item.page || 'sop',
+      type: item.page === 'sertifikasi' ? 'sertifikasi' : 'sop',
+    });
+    let sent = 0;
+    let failed = 0;
+    const staleIds = [];
+
+    await Promise.all((subs || []).map(async (sub) => {
+      try {
+        await webpush.sendNotification(
+          { endpoint: sub.endpoint, keys: { p256dh: sub.keys_p256dh, auth: sub.keys_auth } },
+          payload,
+          { urgency: 'high', TTL: 86400 }
+        );
+        sent++;
+      } catch (err) {
+        failed++;
+        if (err.statusCode === 404 || err.statusCode === 410) staleIds.push(sub.id);
+      }
+    }));
+
+    if (staleIds.length > 0) {
+      await supabaseAdmin.from('push_subscriptions').delete().in('id', staleIds);
+    }
+
+    res.json({ message: 'Queue item processed', sent, failed });
+  } catch (err) {
+    console.error('processQueue error:', err);
+    res.status(500).json({ error: 'Failed to process push queue' });
+  }
+}
+
+module.exports = { sendPush, notifyHrdEmail, processQueue };

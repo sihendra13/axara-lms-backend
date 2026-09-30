@@ -37,6 +37,9 @@ app.get('/api/v1/health', (req, res) => {
   });
 });
 
+// Dipanggil database (pg_net) untuk mengirim notifikasi dari push_queue — tanpa login user
+app.post('/api/v1/push-queue/process', require('./controllers/notificationController').processQueue);
+
 // Routes
 app.use('/api/v1/auth', require('./routes/auth'));
 app.use('/api/v1/users', require('./routes/users'));
