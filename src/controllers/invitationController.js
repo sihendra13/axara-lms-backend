@@ -92,7 +92,7 @@ async function listInvitations(req, res) {
   try {
     const { data, error } = await supabaseAdmin
       .from('supervisor_invitations')
-      .select('id, email, role, name, expires_at, accepted_at, created_at')
+      .select('id, email, role, invited_name, dept, expires_at, accepted_at, created_at')
       .eq('tenant_id', req.tenant_id)
       .order('created_at', { ascending: false });
 
